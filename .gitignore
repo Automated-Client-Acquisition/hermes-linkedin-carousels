@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.env
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Runtime artifacts that should NEVER be checked into the plugin repo —
+# they belong in the user's project root (CAROUSELS_PROJECT_ROOT), not in
+# the plugin itself.
+runs/
+brands/

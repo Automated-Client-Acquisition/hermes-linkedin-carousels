@@ -1,0 +1,13 @@
+STYLE: hand-drawn-saas (whiteboard explainer). The aesthetic world is pure white paper with bold black sans-serif typography and hand-drawn marker illustrations. The composition, hero shape, and decoration of THIS specific slide are decided by you (the model) based on the slide's content as described in the visual note above. This style does NOT prescribe a fixed kit, layout recipe, or hero-zone treatment — it defines only the brand-consistency rules below.
+
+PALETTE. Pure white (#FFFFFF) page background. No texture, no grain, no off-white tint. Deep ink (#0A0A0A) for default type and diagram outlines. Subtle ink (#6B7280) for subtitles and small footer text. Two-color marker scheme ONLY: Accent Blue (#2563EB) and Accent Orange (#F97316). NEVER red. NEVER green / purple / pink. Marker fills always carry visible brush-stroke imperfection — color sits just inside or just outside the black outline, with uneven edges.
+
+TYPOGRAPHY. Headlines in bold black sans-serif (Inter / Helvetica feel), weight 700-800, sentence case, tight leading. NEVER italic. NEVER serif. Subtitles in subtle ink sans-serif at regular weight. Kicker labels at the top in uppercase tracked sans-serif in Accent Blue. Hand-drawn marker handwriting (NOT a typeset font) for any labels inside illustrations. Page counter "NN/NN" centered at the bottom in small black sans.
+
+CONTINUITY CHROME (locked across the deck). Same page-counter format and position. The "SWIPE →" marker-handwriting affordance in Accent Blue appears ONLY on slide 1. No kicker pill — the Accent-Blue uppercase kicker is plain type at the top of each slide.
+
+REALISM. Avatars render as hand-drawn marker portraits with clearly human faces, marker outlines, soft fills in the locked blue or orange palette. Never empty circles or monogram initials. Mockups carry plausible content (this style allows wobbly placeholder hairlines on body type inside sketched cards as deliberate sketch — but never lorem ipsum). Charts are real with axis labels and real data, or absent. Brand marks are real logos when a brand is named.
+
+NEGATIVE RULES (hard bans for this style). No italic type. No serif type. No beige / cream / off-white backgrounds. No red. No Title Case headlines. No rubber stamps (FILED / MEMO / DOSSIER). No halftone B&W photo cutouts. No vector-perfect shapes (every diagram element looks hand-drawn). No 3D / glassmorphism / gradients / drop shadows. No stock-photo elements. No purple-blue tech-startup palettes.
+
+Compose the slide based on the visual note above, within this whiteboard-explainer world. Honor the principles in decoration-and-craft.md without reaching for a fixed kit of elements.

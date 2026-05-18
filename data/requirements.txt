@@ -1,0 +1,4 @@
+# linkedin-carousels skill — Python dependencies
+openai>=1.30.0          # gpt-image-2-2026-04-21 image generation (scripts/generate.py)
+Pillow>=10.0.0          # image normalization to 1080x1350 (scripts/export.py)
+python-dotenv>=1.0.0    # loads OPENAI_API_KEY from .env at the repo root

@@ -1,0 +1,22 @@
+name: linkedin-carousels
+version: 0.1.0
+description: >
+  Turn a blog post URL, transcript, or research doc into a finished,
+  ready-to-post LinkedIn/Instagram carousel — slide-by-slide script,
+  on-brand images via OpenAI gpt-image-2-2026-04-21, correctly sized exports,
+  and the post copy that goes above the carousel. Fully stateful: every
+  step is resumable from a workspace JSON file inside the run folder.
+author: Cedric Seguela
+
+provides_tools:
+  - carousel_init
+  - carousel_list
+  - carousel_state
+  - carousel_generate_slide
+  - carousel_export
+
+requires_env:
+  - name: OPENAI_API_KEY
+    description: "OpenAI API key. Used by carousel_generate_slide to call gpt-image-2-2026-04-21 (~$0.08 per slide)."
+    url: "https://platform.openai.com/api-keys"
+    secret: true
