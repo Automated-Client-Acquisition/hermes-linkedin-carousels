@@ -32,4 +32,4 @@ def register(ctx):
         )
 
     if SKILL_MD.exists():
-        ctx.register_skill("linkedin-carousels", str(SKILL_MD))
+        ctx.register_skill("linkedin-carousels", SKILL_MD)

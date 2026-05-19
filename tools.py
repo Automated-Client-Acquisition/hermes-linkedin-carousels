@@ -61,7 +61,7 @@ def _run_script(script_name: str, args: list[str], project_root: str | None,
 
 
 def _read_workspace(run_path: str) -> dict[str, Any] | None:
-    """Load the workspace JSON for a run. Honors new .working/ + legacy layouts."""
+    """Load the workspace JSON for a run."""
     run = Path(run_path)
     for candidate in (run / ".working" / ".linkedin-carousels-workspace.json",
                       run / ".linkedin-carousels-workspace.json"):
@@ -75,7 +75,13 @@ def _read_workspace(run_path: str) -> dict[str, Any] | None:
 
 def carousel_init(args: dict, **_kwargs) -> str:
     try:
-        project_root = args["project_root"]
+        if not args.get("project_root"):
+            return _err("Missing required parameter: project_root")
+        if not args.get("topic"):
+            return _err("Missing required parameter: topic")
+        if not args.get("brand"):
+            return _err("Missing required parameter: brand")
+
         cli_args = ["--topic", args["topic"], "--brand", args["brand"]]
         if args.get("new_brand"):
             cli_args.append("--new-brand")
@@ -89,14 +95,14 @@ def carousel_init(args: dict, **_kwargs) -> str:
             if args.get(flag):
                 cli_args += [f"--{flag}", args[flag]]
 
-        result = _run_script("init.py", cli_args, project_root)
+        result = _run_script("init.py", cli_args, args["project_root"])
         run_path = None
         for line in result["stdout"].splitlines():
             if line.startswith("OK: run initialized at "):
-                run_path = str(Path(project_root) / line[len("OK: run initialized at "):].strip())
+                run_path = str(Path(args["project_root"]) / line[len("OK: run initialized at "):].strip())
                 break
             if line.startswith("NOTICE: run already exists at "):
-                run_path = str(Path(project_root) / line[len("NOTICE: run already exists at "):].strip())
+                run_path = str(Path(args["project_root"]) / line[len("NOTICE: run already exists at "):].strip())
                 break
         workspace = _read_workspace(run_path) if run_path else None
         return json.dumps({**result, "run_path": run_path, "workspace": workspace})
@@ -106,28 +112,41 @@ def carousel_init(args: dict, **_kwargs) -> str:
 
 def carousel_list(args: dict, **_kwargs) -> str:
     try:
-        cli_args = []
-        if args.get("kind"):
-            cli_args.append(args["kind"])
-        if args.get("name"):
-            cli_args.append(args["name"])
-        return json.dumps(_run_script("list.py", cli_args, args["project_root"]))
+        return json.dumps(_run_script("list.py", [], args.get("project_root")))
     except Exception as e:
         return _err(f"carousel_list failed: {e}", traceback=traceback.format_exc())
 
 
 def carousel_state(args: dict, **_kwargs) -> str:
     try:
-        ws = _read_workspace(args["run_path"])
-        if ws is None:
-            return _err(f"no workspace JSON found under {args['run_path']}")
-        return json.dumps({"ok": True, "workspace": ws})
+        if not args.get("run_path"):
+            return _err("Missing required parameter: run_path")
+        workspace = _read_workspace(args["run_path"])
+        if workspace is None:
+            return _err("Workspace not found for this run_path")
+        return json.dumps({"ok": True, "workspace": workspace})
     except Exception as e:
         return _err(f"carousel_state failed: {e}", traceback=traceback.format_exc())
 
 
 def carousel_generate_slide(args: dict, **_kwargs) -> str:
     try:
+        # Input validation
+        if not args.get("run_path"):
+            return _err("Missing required parameter: run_path")
+        if args.get("slide") is None:
+            return _err("Missing required parameter: slide")
+        if not args.get("prompt"):
+            return _err("Missing required parameter: prompt")
+
+        # Cost warning - require explicit confirmation
+        if not args.get("force"):
+            return json.dumps({
+                "ok": False,
+                "warning": "Image generation costs ~$0.08 per slide. Set force=true to proceed.",
+                "cost_estimate": 0.08
+            })
+
         cli_args = [
             "--run", args["run_path"],
             "--slide", str(args["slide"]),
@@ -143,14 +162,19 @@ def carousel_generate_slide(args: dict, **_kwargs) -> str:
             cli_args += ["--size", args["size"]]
         if args.get("force"):
             cli_args.append("--force")
+
         project_root = str(Path(args["run_path"]).resolve().parents[1])
         return json.dumps(_run_script("generate.py", cli_args, project_root))
+
     except Exception as e:
         return _err(f"carousel_generate_slide failed: {e}", traceback=traceback.format_exc())
 
 
 def carousel_export(args: dict, **_kwargs) -> str:
     try:
+        if not args.get("run_path"):
+            return _err("Missing required parameter: run_path")
+
         cli_args = ["--run", args["run_path"]]
         project_root = str(Path(args["run_path"]).resolve().parents[1])
         result = _run_script("export.py", cli_args, project_root)

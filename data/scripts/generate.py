@@ -2,276 +2,310 @@
 """
 generate.py — STEP 4 of the linkedin-carousels pipeline.
 
-Generates ONE slide image with OpenAI's gpt-image-2-2026-04-21 model and saves it into
-the run's slides/ folder. Idempotent: if the slide image already exists it is
-skipped unless --force is passed. That idempotency is what makes the art step
-resumable after an interruption — a crashed run just continues from the
-missing slide.
+Generates ONE slide image via OpenAI Responses API (gpt-5.5 + image_generation tool)
+and saves it into the run's .working/slides/ folder. Idempotent: skips existing
+slides unless --force.
 
 Usage:
-    python .claude/skills/linkedin-carousels/scripts/generate.py \
-        --run "runs/on-page-aeo-2026-05-14" \
-        --slide 3 \
-        --prompt "<visual note + locked style fragment>"
+    python scripts/generate.py \
+        --run "runs/on-page-aeo-2026-05-14" --slide 1 \
+        --prompt "The full prompt: visual note + layout fragment + style fragment"
 
-Optional:
-    --reference "slides/slide-01.png"   anchor style on an earlier slide
-    --force                             regenerate even if the image exists
-    --size 1024x1536                    gpt-image-2-2026-04-21 size (default 1024x1536, ~4:5)
+    # With a reference image for style anchoring:
+    python scripts/generate.py \
+        --run "runs/on-page-aeo-2026-05-14" --slide 2 \
+        --prompt "..." --reference ".working/slides/slide-01.png"
 
-Requires OPENAI_API_KEY in the environment.
+    # Force regenerate an existing slide:
+    python scripts/generate.py \
+        --run "runs/on-page-aeo-2026-05-14" --slide 1 \
+        --prompt "..." --force
+
+Auto-chaining: by default, reads the workspace to find the previous slide's
+response_id and chains via `previous_response_id` for visual consistency.
+Use --no-chain to disable, or --previous-response-id to chain off a specific id.
 """
 import argparse
 import base64
+import datetime
+import json
+import os
+import re
 import sys
+import time
 from pathlib import Path
 
-import state as state_mod  # local module, same folder
+# Path model consistent with init.py / list.py / state.py.
+SKILL_DIR = Path(os.environ.get("CAROUSELS_SKILL_DIR")
+                 or Path(__file__).resolve().parent.parent)
+REPO_ROOT = Path(os.environ.get("CAROUSELS_PROJECT_ROOT")
+                 or SKILL_DIR.parent.parent.parent)
 
-# Multi-turn image generation via the Responses API.
-# gpt-5.5 (and newer) supports tools=[{"type": "image_generation"}] with
-# previous_response_id chaining. Chaining preserves visual context across
-# slides — paper color, type rendering, accent intensity, composition
-# language — so the deck reads as one set instead of ten lookalikes.
-# Reference: https://developers.openai.com/api/docs/guides/image-generation
-#
-# The legacy direct-image-endpoint approach (client.images.generate /
-# images.edit with model=gpt-image-2-2026-04-21) is still viable but lacks the
-# automatic visual context propagation that makes a carousel coherent.
-DEFAULT_SIZE = "1024x1536"
-MODEL = "gpt-5.5"
+# Import shared state helpers from the same directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import state as state_mod
+
+WORKING_SUBDIR = ".working"
 
 
-def fail(msg: str, code: int = 1):
-    print(f"ERROR: {msg}", file=sys.stderr)
-    sys.exit(code)
-
+# ---- OpenAI client ----
 
 def get_client():
+    """Return an OpenAI client, reading OPENAI_API_KEY from env or .env."""
     try:
         from openai import OpenAI
     except ImportError:
-        fail("openai package not installed. Run: pip install -r "
-             ".claude/skills/linkedin-carousels/requirements.txt")
-    import os
-    # Load OPENAI_API_KEY from .env at the repo root if present. Real env
-    # vars always win — the file is just a convenience so the key doesn't
-    # have to be re-exported every session.
+        raise RuntimeError("openai package not installed. Run: pip install openai")
+
+    import os as _os
+    api_key = _os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+            api_key = _os.getenv("OPENAI_API_KEY")
+        except ImportError:
+            pass
+
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not found in environment or .env file")
+
+    return OpenAI(api_key=api_key)
+
+
+# ---- Helpers ----
+
+def _resolve_slide_path(run_dir: Path, slide_num: int) -> Path:
+    """Return path to .working/slides/slide-NN.png for the run."""
+    return run_dir / WORKING_SUBDIR / "slides" / f"slide-{slide_num:02d}.png"
+
+
+def _resolve_reference(ref_spec: str, run_dir: Path) -> Path | None:
+    """Resolve a --reference value. Absolute paths used directly;
+    relative paths resolved against the run_dir."""
+    if not ref_spec:
+        return None
+    p = Path(ref_spec)
+    if p.is_absolute():
+        return p if p.exists() else None
+    return (run_dir / p) if (run_dir / p).exists() else None
+
+
+def _upload_reference(client, ref_path: Path) -> str | None:
+    """Upload a reference image via the Files API and return the file ID.
+    Returns None if upload fails."""
     try:
-        from dotenv import load_dotenv
-        repo_root = Path(__file__).resolve().parents[4]
-        load_dotenv(repo_root / ".env", override=False)
-    except ImportError:
-        pass  # dotenv optional — exporting the var manually still works
-    if not os.environ.get("OPENAI_API_KEY"):
-        fail("OPENAI_API_KEY not set. Either `export OPENAI_API_KEY=sk-...` "
-             "or add it to the .env file at the repo root.")
-    return OpenAI()
+        with open(ref_path, "rb") as f:
+            file_obj = client.files.create(file=f, purpose="vision")
+        return file_obj.id
+    except Exception as exc:
+        print(f"WARNING: could not upload reference {ref_path}: {exc}",
+              file=sys.stderr)
+        return None
 
 
-def _extract_image_from_response(response) -> bytes:
-    """Pull the b64 image payload out of a Responses API response.
+def _extract_image(response) -> str | None:
+    """Extract base64 image data from a Responses API response output."""
+    for output in response.output:
+        if getattr(output, "type", None) == "image_generation_call":
+            return output.result
+    return None
 
-    The response.output is a list of items; the image lives in an item of
-    type 'image_generation_call' with a base64 result on its .result field.
+
+def _save_image(b64_data: str, dst: Path) -> None:
+    """Decode base64 image and save to dst. Creates parent dirs if needed."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    # Remove data URL prefix if present
+    if b64_data.startswith("data:"):
+        # data:image/png;base64,iVBOR...
+        b64_data = b64_data.split(",", 1)[1]
+    dst.write_bytes(base64.b64decode(b64_data))
+
+
+def _get_previous_response_id(ws: dict, slide_num: int) -> str | None:
+    """Find the response_id of the previous slide in the workspace."""
+    images = ws.get("images", {})
+    # Try slide-{N-1:02d} then raw integers 0-(N-1)
+    prev_key = f"slide_{(slide_num - 1):02d}"
+    prev = images.get(prev_key, {})
+    if isinstance(prev, dict):
+        return prev.get("response_id")
+    # Backward compat: check if images values may be strings "done"
+    return None
+
+
+# ---- Main generation ----
+
+def generate_slide(
+    run_dir: Path,
+    slide_num: int,
+    prompt: str,
+    *,
+    reference: str | None = None,
+    previous_response_id: str | None = None,
+    no_chain: bool = False,
+    size: str | None = None,
+    force: bool = False,
+    client=None,
+) -> dict:
     """
-    items = getattr(response, "output", None) or []
-    for item in items:
-        item_type = getattr(item, "type", None)
-        if item_type == "image_generation_call":
-            b64 = getattr(item, "result", None)
-            if b64:
-                return base64.b64decode(b64)
-    fail("OpenAI response contained no image_generation_call output. "
-         "Inspect the run's workspace history for the response id.")
-
-
-def generate_image(client, prompt: str, size: str,
-                   previous_response_id: str | None,
-                   reference: Path | None) -> tuple[bytes, str]:
-    """Generate one slide via the Responses API.
-
-    Three modes, in priority order:
-    1. If previous_response_id is set, chain off it (multi-turn).
-    2. Else if reference is set, pass the reference image as input alongside
-       the prompt (single-turn anchored on a literal image).
-    3. Else generate from prompt only (cold start, no visual anchor).
-
-    Returns (image_bytes, response_id). Caller persists the response_id so
-    the next slide can chain off this one.
+    Generate one slide image. Returns a result dict:
+        {ok, path, response_id, cached}
     """
-    tools = [{"type": "image_generation", "size": size}]
+    ws = state_mod.load(run_dir)
 
-    if previous_response_id:
-        response = client.responses.create(
-            model=MODEL,
-            previous_response_id=previous_response_id,
-            input=prompt,
-            tools=tools,
-        )
-    elif reference is not None:
-        if not reference.exists():
-            fail(f"reference image not found: {reference}")
-        with open(reference, "rb") as ref_fh:
-            ref_b64 = base64.b64encode(ref_fh.read()).decode("ascii")
-        response = client.responses.create(
-            model=MODEL,
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": prompt},
-                        {
-                            "type": "input_image",
-                            "image_url": f"data:image/png;base64,{ref_b64}",
-                        },
-                    ],
-                }
-            ],
-            tools=tools,
-        )
-    else:
-        response = client.responses.create(
-            model=MODEL,
-            input=prompt,
-            tools=tools,
-        )
+    # Resolve size from workspace format if not explicit
+    if not size:
+        fmt = ws.get("format", {})
+        size = fmt.get("source_size", "1024x1536")
+        # Validate size is one of the three allowed
+        if size not in ("1024x1024", "1024x1536", "1536x1024"):
+            size = "1024x1536"
 
-    img_bytes = _extract_image_from_response(response)
-    response_id = getattr(response, "id", None)
-    if not response_id:
-        fail("OpenAI response had no .id; cannot chain subsequent slides.")
-    return img_bytes, response_id
+    # Idempotency check
+    slide_path = _resolve_slide_path(run_dir, slide_num)
+    if slide_path.exists() and not force:
+        print(f"  slide-{slide_num:02d}.png already exists — skipping (use --force to regenerate)",
+              file=sys.stderr)
+        return {
+            "ok": True,
+            "path": str(slide_path),
+            "response_id": None,
+            "cached": True,
+        }
 
+    # Client
+    if client is None:
+        client = get_client()
+
+    # Reference image
+    ref_file_id = None
+    if reference:
+        ref_path = _resolve_reference(reference, run_dir)
+        if ref_path and ref_path.exists():
+            ref_file_id = _upload_reference(client, ref_path)
+            print(f"  reference: {ref_path} (file_id={ref_file_id})", file=sys.stderr)
+        else:
+            print(f"WARNING: reference image not found: {reference}", file=sys.stderr)
+
+    # Chaining: resolve previous_response_id
+    chain_id = previous_response_id
+    if not chain_id and not no_chain:
+        chain_id = _get_previous_response_id(ws, slide_num)
+    if chain_id:
+        print(f"  chaining from response_id: {chain_id}", file=sys.stderr)
+
+    # Build Responses API call
+    kwargs = {
+        "model": "gpt-5.5",
+        "input": prompt,
+        "tools": [{"type": "image_generation", "size": size}],
+    }
+    if chain_id:
+        kwargs["previous_response_id"] = chain_id
+
+    # If we have a reference but can't pass file_id directly in input for image_generation,
+    # prepend a vision message with the reference
+    if ref_file_id:
+        kwargs["input"] = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "file_id": ref_file_id, "detail": "high"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": f"Using the style reference above, generate: {prompt}",
+            },
+        ]
+
+    # Generate
+    print(f"  generating slide {slide_num} ({size})...", file=sys.stderr)
+    try:
+        response = client.responses.create(**kwargs)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": f"API call failed: {exc}",
+            "response_id": None,
+        }
+
+    # Extract image
+    b64_data = _extract_image(response)
+    if not b64_data:
+        return {
+            "ok": False,
+            "error": "Response did not contain an image_generation_call output",
+            "response_id": response.id,
+        }
+
+    # Save
+    _save_image(b64_data, slide_path)
+    print(f"  saved: {slide_path} ({slide_path.stat().st_size} bytes)", file=sys.stderr)
+
+    # Update workspace
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    ws.setdefault("images", {})[f"slide_{slide_num:02d}"] = {
+        "status": "done",
+        "response_id": response.id,
+        "generated_at": now,
+        "path": str(slide_path),
+    }
+    state_mod.save(run_dir, ws)
+
+    return {
+        "ok": True,
+        "path": str(slide_path),
+        "response_id": response.id,
+        "cached": False,
+        "size": size,
+    }
+
+
+# ---- CLI ----
 
 def main():
     p = argparse.ArgumentParser(description="Generate one carousel slide image.")
     p.add_argument("--run", required=True, help="Path to the run folder.")
     p.add_argument("--slide", type=int, required=True, help="Slide number (1-based).")
-    p.add_argument("--prompt", required=True, help="Full image prompt.")
-    p.add_argument("--reference", help="Optional earlier slide image to anchor style. "
-                   "Ignored when --previous-response-id is set or auto-chaining picks one up.")
-    p.add_argument("--previous-response-id", default=None,
-                   help="Explicit Responses-API response id to chain off. "
-                   "If omitted, auto-chains off the previous slide's stored id.")
-    p.add_argument("--no-chain", action="store_true",
-                   help="Disable auto-chaining off the previous slide's response id. "
-                   "Use when you intentionally want a fresh generation.")
-    p.add_argument("--size", default=None,
-                   help="Image size for gpt-image-2-2026-04-21 (e.g. 1024x1536). "
-                        "If omitted, reads format.source_size from the run's "
-                        "workspace JSON. Falls back to 1024x1536.")
-    p.add_argument("--force", action="store_true", help="Regenerate even if it exists.")
+    p.add_argument("--prompt", required=True, help="Full image prompt (visual note + layout + style fragments).")
+    p.add_argument("--reference", default=None, help="Path to an anchor image for style continuity.")
+    p.add_argument("--previous-response-id", default=None, help="Explicit Responses API id to chain off.")
+    p.add_argument("--no-chain", action="store_true", help="Disable auto-chaining.")
+    p.add_argument("--size", default=None, help="Image size (1024x1536, 1024x1024, 1536x1024).")
+    p.add_argument("--force", action="store_true", help="Regenerate even if the slide image exists.")
     args = p.parse_args()
 
     run_dir = Path(args.run)
     if not run_dir.exists():
-        fail(f"run folder does not exist: {run_dir}")
+        print(f"ERROR: run folder does not exist: {run_dir}", file=sys.stderr)
+        sys.exit(1)
 
-    # load + guard state
+    # Verify prerequisites
     try:
         ws = state_mod.load(run_dir)
         state_mod.require_step_done(ws, "script")
         state_mod.require_step_done(ws, "style")
     except state_mod.StateError as e:
-        fail(str(e))
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    if args.slide < 1:
-        fail("--slide must be >= 1")
+    result = generate_slide(
+        run_dir=run_dir,
+        slide_num=args.slide,
+        prompt=args.prompt,
+        reference=args.reference,
+        previous_response_id=args.previous_response_id,
+        no_chain=args.no_chain,
+        size=args.size,
+        force=args.force,
+    )
 
-    # Raw slide PNGs live inside .working/slides/ in the new layout. Legacy
-    # runs kept them at runs/<slug>/slides/ — fall back to that if .working/
-    # doesn't exist yet (e.g. mid-migration).
-    working_slides = run_dir / ".working" / "slides"
-    legacy_slides = run_dir / "slides"
-    if working_slides.exists() or (run_dir / ".working").exists():
-        slides_dir = working_slides
-    elif legacy_slides.exists():
-        slides_dir = legacy_slides
-    else:
-        slides_dir = working_slides  # default: write into new layout
-    slides_dir.mkdir(parents=True, exist_ok=True)
-    out_path = slides_dir / f"slide-{args.slide:02d}.png"
-
-    # idempotency — this is what makes the step resumable
-    if out_path.exists() and not args.force:
-        print(f"SKIP: {out_path} already exists (pass --force to regenerate).")
-        ws["images"][f"slide_{args.slide:02d}"] = "done"
-        state_mod.save(run_dir, ws)
-        return
-
-    reference = None
-    if args.reference:
-        reference = Path(args.reference)
-        if not reference.is_absolute():
-            # Try the new layout first (run_dir/.working/<arg>), then fall
-            # back to the legacy layout (run_dir/<arg>). Users typing
-            # `--reference slides/slide-01.png` should hit either without
-            # caring about the migration.
-            candidate_new = run_dir / ".working" / args.reference
-            candidate_legacy = run_dir / args.reference
-            if candidate_new.exists():
-                reference = candidate_new
-            elif candidate_legacy.exists():
-                reference = candidate_legacy
-            else:
-                reference = candidate_new  # let the existence check below fail clearly
-
-    # Resolve which response_id (if any) to chain off. Priority:
-    # 1. Explicit --previous-response-id from the CLI.
-    # 2. Auto-chain: the previous slide's stored response_id (unless --no-chain).
-    # 3. None: cold start; reference image (if any) is used instead.
-    previous_response_id = args.previous_response_id
-    if not previous_response_id and not args.no_chain and args.slide > 1:
-        prev_key = f"slide_{args.slide - 1:02d}_response_id"
-        previous_response_id = ws.get("images", {}).get(prev_key)
-
-    chain_note = ""
-    if previous_response_id:
-        chain_note = f", chained off response {previous_response_id[:12]}..."
-    elif reference:
-        chain_note = f", anchored on {reference.name}"
-    # Resolve image size: --size CLI arg wins; else workspace format.source_size;
-    # else DEFAULT_SIZE. Workspace lookup tolerates older runs that have no
-    # format field.
-    if args.size:
-        size = args.size
-    else:
-        fmt = ws.get("format") or {}
-        size = fmt.get("source_size", DEFAULT_SIZE)
-
-    print(f"Generating slide {args.slide} -> {out_path} (size {size}){chain_note}")
-
-    client = get_client()
-    try:
-        img_bytes, response_id = generate_image(
-            client, args.prompt, size, previous_response_id, reference
-        )
-    except Exception as e:  # noqa: BLE001 - surface any API failure cleanly
-        fail(f"image generation failed: {e}")
-
-    out_path.write_bytes(img_bytes)
-
-    # update workspace
-    ws["images"][f"slide_{args.slide:02d}"] = "done"
-    ws["images"][f"slide_{args.slide:02d}_response_id"] = response_id
-    state_mod.log(ws, "art",
-                  f"generated slide {args.slide:02d} (response {response_id[:12]}...)")
-
-    # if every scripted slide is now present, mark the art step done
-    expected = ws.get("slide_count")
-    if expected:
-        have = sum(
-            1 for n in range(1, expected + 1)
-            if (slides_dir / f"slide-{n:02d}.png").exists()
-        )
-        if have == expected:
-            ws["steps"]["art"] = "done"
-            state_mod.log(ws, "art", f"all {expected} slides generated")
-            print(f"ALL {expected} SLIDES DONE — art step complete.")
-    state_mod.save(run_dir, ws)
-
-    print(f"OK: wrote {out_path}")
+    print(json.dumps(result, indent=2))
+    if not result.get("ok"):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
