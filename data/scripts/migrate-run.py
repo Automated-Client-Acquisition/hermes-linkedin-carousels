@@ -37,11 +37,11 @@ NEW layout (deliverables at the run root, scaffolding in .working/):
 The migration is reversible (re-run with --revert).
 
 Usage:
-    python .claude/skills/linkedin-carousels/scripts/migrate-run.py \\
+    python data/scripts/migrate-run.py \\
         --run "runs/templates-aren-t-the-problem-2026-05-15"
 
     # dry-run (print actions, change nothing):
-    python .claude/skills/linkedin-carousels/scripts/migrate-run.py \\
+    python data/scripts/migrate-run.py \\
         --run "runs/templates-aren-t-the-problem-2026-05-15" --dry-run
 """
 import argparse

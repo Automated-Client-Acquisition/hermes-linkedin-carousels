@@ -9,13 +9,13 @@ calling init.py, and where each entry came from (skill default vs
 project-local).
 
 Usage:
-    python .claude/skills/linkedin-carousels/scripts/list.py
+    python data/scripts/list.py
 
     # Filter to one kind
-    python .claude/skills/linkedin-carousels/scripts/list.py styles
+    python data/scripts/list.py styles
 
     # Show details for one entry
-    python .claude/skills/linkedin-carousels/scripts/list.py styles aca
+    python data/scripts/list.py styles aca
 """
 import sys
 from pathlib import Path

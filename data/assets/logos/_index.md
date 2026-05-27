@@ -135,6 +135,21 @@ visual note). Aliases let the orchestrator match "Twitter", "X",
   Research), use the same fallback. If exactness matters, drop a
   Nous logo into this folder manually.
 
+### Sales & Outreach Tools
+
+- **Clay** — file: `clay.png`. Sourced from clay.com (Webflow CDN).
+  Aliases: `clay.com`, `Clay enrichment`. Recommended size: 48-80px
+  wide. NOTE: competitor comparison risk — use typographic fallback
+  if the slide positions Clay as being outperformed.
+- **PhantomBuster** — file: `NOT INCLUDED` (SPA site, no static logo
+  accessible; favicon-only SVG saved as `phantombuster.svg` is a
+  24px ghost icon, not a wordmark). Fallback: render the wordmark
+  typographically as "PhantomBuster" in bold sans-serif.
+  Aliases: `phantombuster.com`, `PB`. To get a proper logo: navigate
+  to phantombuster.com in a browser, right-click the logo, save as
+  SVG/PNG. Or try `https://brandfetch.com/phantombuster.com` (login
+  required for API; free tier allows manual download).
+
 ### Productivity and SaaS
 
 - **Stripe** — file: `stripe.svg`. Aliases: `stripe.com`.

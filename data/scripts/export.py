@@ -8,7 +8,7 @@ writes the ready-to-post bundle into the run's export/ folder along with the
 post copy and a pre-post checklist.
 
 Usage:
-    python .claude/skills/linkedin-carousels/scripts/export.py \
+    python data/scripts/export.py \
         --run "runs/on-page-aeo-2026-05-14"
 
 Requires Pillow (see requirements.txt).
@@ -300,7 +300,7 @@ def normalize_image(src: Path, dst: Path, bg_hex: str | None = None,
         from PIL import Image, ImageOps
     except ImportError:
         fail("Pillow not installed. Run: pip install -r "
-             ".claude/skills/linkedin-carousels/requirements.txt")
+             "data/requirements.txt")
 
     img = Image.open(src)
     # flatten transparency onto white first; the bg lock pass (if any) runs

@@ -15,12 +15,12 @@ the run folder.
 hermes plugins install seguelaCedric/hermes-linkedin-carousels --enable
 ```
 
-This drops the plugin into `~/.hermes/plugins/hermes-linkedin-carousels/`
+This drops the plugin into `~/.hermes/plugins/linkedin-carousels/`
 and enables it. You then need to:
 
 1. **Install the Python deps into the same Python that runs Hermes.** If
    Hermes is in a venv at `~/venvs/hermes/`, that's
-   `~/venvs/hermes/bin/pip install -r ~/.hermes/plugins/hermes-linkedin-carousels/data/requirements.txt`.
+   `~/venvs/hermes/bin/pip install -r ~/.hermes/plugins/linkedin-carousels/data/requirements.txt`.
    In a Docker container it's `docker exec <cid> pip install -r ...`.
 
 2. **Export your OpenAI key** for the user that runs Hermes:
@@ -42,7 +42,7 @@ and enables it. You then need to:
 ## Update
 
 ```bash
-hermes plugins update hermes-linkedin-carousels
+hermes plugins update linkedin-carousels
 ```
 
 ## What the plugin exposes
@@ -65,7 +65,7 @@ acting; the tools just do the deterministic work.
 
 ## How the filesystem is laid out
 
-- **The plugin** lives at `~/.hermes/plugins/hermes-linkedin-carousels/`.
+- **The plugin** lives at `~/.hermes/plugins/linkedin-carousels/`.
   Don't put project data here.
 - **Your project** lives wherever you want — pass its absolute path as
   `project_root` to `carousel_init` and `carousel_list`. Brands and

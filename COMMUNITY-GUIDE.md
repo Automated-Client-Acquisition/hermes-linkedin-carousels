@@ -1,180 +1,174 @@
-# Hermes Cracked: LinkedIn & Instagram Carousels
+# LinkedIn Carousels — Community Guide
 
-Turn any blog post, transcript, or topic into a finished, ready-to-post carousel.
-AI generates the slides. You get the PDF + PNGs + post copy. Fully automated.
-
----
-
-## What You Need (3 Things)
-
-| Thing | Cost | Time |
-|-------|------|------|
-| Hermes Agent (free) | $0 | 5 min |
-| OpenAI API key | ~$0.08/slide | 2 min |
-| The carousel plugin (provided) | Included | 1 min |
-
-**Total: 10 minutes setup, then $0.80 for a 10-slide carousel.**
+Turn any blog post, transcript, or research doc into a finished LinkedIn/Instagram carousel — slide-by-slide script, on-brand AI-generated images, correctly sized exports, and post copy. All through Hermes Agent.
 
 ---
 
-## Step 1: Install Hermes Agent
+## What You Need
 
-```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-```
-
-Or with pip:
-```bash
-pip install hermes-agent
-```
-
-Verify:
-```bash
-hermes --version
-```
+| Item | Cost | Setup Time |
+|---|---|---|
+| Hermes Agent installed | Free | 10 min (if not already) |
+| OpenAI API key | ~$0.08 per slide | 2 min |
+| GitHub account (member of Automated-Client-Acquisition org) | Free | Already done via Skool |
 
 ---
 
-## Step 2: Get Your OpenAI API Key
+## Step 1: Get Your OpenAI API Key
 
 1. Go to https://platform.openai.com/api-keys
-2. Click "Create new secret key"
-3. Copy it (starts with `sk-...`)
-4. Fund your account with $10 (lasts ~125 slides)
+2. Click **"Create new secret key"**
+3. Give it a name like `hermes-carousels`
+4. Copy the key (it starts with `sk-proj-` or `sk-`)
+5. Save it somewhere safe — you'll need it in Step 2
 
 ---
 
-## Step 3: Install the Carousel Plugin
+## Step 2: Install the Plugin
 
-We provide the plugin as a folder. Copy it into Hermes:
+If you're already a member of the Automated-Client-Acquisition GitHub org, run this ONE command:
 
 ```bash
-# From the zip we gave you:
-cp -r linkedin-carousels ~/.hermes/plugins/linkedin-carousels
-
-# Enable it
-hermes plugins enable linkedin-carousels
-
-# Verify
-hermes plugins list | grep linkedin
+hermes plugins install Automated-Client-Acquisition/hermes-linkedin-carousels --enable
 ```
 
-Install the Python dependencies:
+Hermes will prompt you for the OpenAI key. Paste it when asked.
+
+Then install the Python dependencies:
+
 ```bash
-pip install openai Pillow python-dotenv
+pip install -r ~/.hermes/plugins/linkedin-carousels/data/requirements.txt
 ```
+
+Restart Hermes and verify:
+
+```bash
+hermes plugins list | grep carousel
+```
+
+You should see `linkedin-carousels` listed.
 
 ---
 
-## Step 4: Set Your OpenAI Key
+## Step 3: Create Your Project Folder
+
+Pick a folder on your machine where your carousel projects will live. This is where brands, styles, and runs are stored. For example:
 
 ```bash
-echo "OPENAI_API_KEY=sk-your-key-here" > ~/.hermes/.env
+mkdir ~/carousels
 ```
+
+That's it. Pass this path as `project_root` whenever you use the carousel tools.
 
 ---
 
-## Step 5: Create Your First Carousel
+## Step 4: Your First Carousel
 
 Open Hermes and type:
 
 ```
-make a carousel about 5 LinkedIn growth hacks that work in 2026
+Make a LinkedIn carousel from this URL: https://example.com/my-blog-post
 ```
 
-The agent will:
-1. Ask which style, voice, and layout you want
-2. Draft the slide script
-3. Ask you to confirm before generating (costs $0.08/slide)
-4. Generate all slide images
-5. Export to PDF + PNGs + post copy
+Hermes will:
 
-Your carousel lands in `~/carousels/runs/<topic>-<date>/`.
+1. Ask you which style/voice/hook/layout to use (shows you the available options)
+2. Scaffold a run folder under `~/carousels/runs/<topic>-<date>/`
+3. Write the script and visual notes
+4. Ask you to confirm before generating slide images (each costs ~$0.08)
+5. Generate all slides
+6. Export final PNGs + PDF + post copy
+
+The final deliverables land at:
+```
+~/carousels/runs/<topic>-<date>/
+  01.png ... 10.png    ← ready to post
+  carousel.pdf          ← LinkedIn document carousel
+  post-copy.txt         ← caption text
+  CHECKLIST.md          ← pre-post checks
+```
 
 ---
 
-## Advanced: Telegram Bot (Auto-Delivery)
+## The Five Tools
 
-Want carousels delivered straight to Telegram? Set up the bot:
+These are what Hermes uses under the hood. You can also call them directly:
 
-### 1. Create a Telegram bot
-- DM @BotFather on Telegram
-- Send `/newbot`
-- Name it, get the token
+| Tool | What it does |
+|---|---|
+| `carousel_list` | Show available styles, voices, hooks, patterns, layouts |
+| `carousel_init` | Scaffold a new run folder (STEP 0) |
+| `carousel_state` | Check the progress of a run |
+| `carousel_generate_slide` | Generate ONE slide image (~$0.08) |
+| `carousel_export` | Export final PNGs + PDF + copy (STEP 5) |
 
-### 2. Create a Hermes profile
-```bash
-hermes profile create carousel-bot
-```
+---
 
-### 3. Configure it
-```bash
-echo "OPENAI_API_KEY=sk-..." >> ~/.hermes/profiles/carousel-bot/.env
-echo "TELEGRAM_BOT_TOKEN=123:abc..." >> ~/.hermes/profiles/carousel-bot/.env
-echo "DEEPSEEK_API_KEY=sk-..." >> ~/.hermes/profiles/carousel-bot/.env
+## Available Styles (built-in)
 
-# Copy the plugin
-cp -r ~/.hermes/plugins/linkedin-carousels ~/.hermes/profiles/carousel-bot/plugins/
-hermes -p carousel-bot plugins enable linkedin-carousels
-```
+- **aca** — Automated Client Acquisition brand style (red, dark, editorial)
+- **bold-poster** — High-contrast poster aesthetic
+- **bloomberg-feature** — Financial/tech editorial, data-heavy
+- **hand-drawn-saas** — Sketch-style SaaS illustrations
+- **noir-collage** — Dark, textured, collage aesthetic
+- **risograph-zine** — Print-zine texture, limited palette
 
-### 4. Start the bot
-```bash
-hermes -p carousel-bot gateway run
-```
-
-DM your bot on Telegram. Send "make a carousel about AI agents for B2B" and it delivers the PDF.
+To see them all: `carousel_list({project_root: "~/carousels", kind: "styles"})`
 
 ---
 
 ## Costs
 
-| Item | Price |
-|------|-------|
-| Hermes Agent | Free |
-| DeepSeek API (the brain) | ~$0.01/carousel |
-| OpenAI gpt-5.5 (image gen) | $0.08/slide |
-| **10-slide carousel** | **~$0.81** |
+| Operation | Cost |
+|---|---|
+| `carousel_list` | Free |
+| `carousel_init` | Free |
+| `carousel_state` | Free |
+| `carousel_generate_slide` | ~$0.08 per slide (OpenAI API) |
+| `carousel_export` | Free (local processing) |
 
----
-
-## Styles Available
-
-| Style | Vibe |
-|-------|------|
-| `aca` | Editorial Bone-paper + Ink + Red. Warm, authoritative |
-| `hand-drawn-saas` | Whiteboard explainer, marker-style diagrams |
-| `noir-collage` | Dark, halftone B&W, investigative energy |
-| `bloomberg-feature` | Magazine-feature, cream paper, premium |
-| `bold-poster` | Single oversized typographic statement |
-| `risograph-zine` | Two-ink spot-print, art-school energy |
+A typical 10-slide carousel costs ~$0.80.
 
 ---
 
 ## Troubleshooting
 
-**"OPENAI_API_KEY not found"**
-→ Your key isn't set. Run `echo "OPENAI_API_KEY=sk-..." >> ~/.hermes/.env`
+### "OPENAI_API_KEY not found"
+The plugin needs your OpenAI key. Run:
+```bash
+hermes plugins disable linkedin-carousels
+hermes plugins enable linkedin-carousels
+```
+It will prompt you for the key again. Or add it to `~/.hermes/.env`:
+```
+OPENAI_API_KEY=sk-your-key-here
+```
 
-**"Module not found: PIL"**
-→ Run `pip install Pillow`
+### "openai package not installed"
+Run: `pip install -r ~/.hermes/plugins/linkedin-carousels/data/requirements.txt`
 
-**"Provider deepseek has no API key"**
-→ Add `DEEPSEEK_API_KEY` to your `.env` file
+### "Pillow not installed"
+Run: `pip install Pillow`
 
-**Image looks wrong?**
-→ The agent asks before generating slide 1. Approve the prompt before it burns credits.
+### "script not found: .../generate.py"
+The plugin wasn't installed correctly. Re-install:
+```bash
+hermes plugins remove linkedin-carousels
+hermes plugins install Automated-Client-Acquisition/hermes-linkedin-carousels --enable
+```
+
+### Generated images look wrong or off-brand
+- The `force=true` parameter on `carousel_generate_slide` regenerates a slide
+- Try a different style with `carousel_init({..., style: "bold-poster"})`
+- The first slide sets the visual anchor — confirm the prompt before generating
+
+### "Workspace not found"
+You may be pointing to a wrong `run_path`. Use `carousel_list` to find available runs, or check your project root's `runs/` folder.
 
 ---
 
-## Files You Get Per Carousel
+## Still Stuck?
 
-```
-runs/<your-topic>-<date>/
-  01.png              ← slide 1, 1080×1350
-  02.png              ← slide 2
-  ...
-  carousel.pdf        ← all slides, for LinkedIn document carousel
-  post-copy.txt       ← the caption to paste above the carousel
-  CHECKLIST.md        ← pre-post verification
-```
+- Ask in the Skool community
+- Message the admin agent (@ACAHermesAdminBot on Telegram)
+- Check the full README at: https://github.com/Automated-Client-Acquisition/hermes-linkedin-carousels

@@ -7,7 +7,7 @@ description: >
   post copy that goes above the carousel. Fully stateful: the first call
   scaffolds a run folder + workspace file, and every later call resumes from
   the first step that isn't done.
-built_with: [Claude Code, OpenAI gpt-image-2-2026-04-21]
+built_with: [Hermes Agent, OpenAI gpt-image-2-2026-04-21]
 trigger: >
   Use when the user wants a LinkedIn or Instagram carousel, wants to turn an
   article/transcript/research doc into slides, says "make a carousel",
@@ -17,7 +17,7 @@ trigger: >
 
 # LinkedIn & Instagram Carousels
 
-You (Claude Code) are the **orchestrator**. The Python scripts in `scripts/`
+You are the **orchestrator**. The Python scripts in `scripts/`
 do the deterministic work — folder scaffolding, OpenAI image calls, image
 resizing/export. You do the judgement work — reading the source, writing the
 script, locking the style, writing image prompts.
@@ -112,7 +112,7 @@ always say "other" but the named options anchor the question.
   the HOW.
 
 The skill discovers libraries in two tiers: skill-shipped defaults
-inside `.claude/skills/linkedin-carousels/<kind>/`, and project-local
+inside `data/<kind>/`, and project-local
 entries at `<project-root>/<kind>/`. Project-local entries shadow skill
 defaults on name conflict, so users can override without forking the
 skill.
@@ -120,7 +120,7 @@ skill.
 To discover what's available:
 
 ```bash
-python .claude/skills/linkedin-carousels/scripts/list.py
+python data/scripts/list.py
 ```
 
 If the user names a brand that has no `brand.md` yet, run `init.py` with
@@ -163,7 +163,7 @@ Creates the run folder structure + workspace file so the skill knows what has
 been done.
 
 ```bash
-python .claude/skills/linkedin-carousels/scripts/init.py \
+python data/scripts/init.py \
   --topic "On-page AEO" \
   --brand aca \
   --style aca \
@@ -204,10 +204,10 @@ exists, it refuses to overwrite and prints the existing state so you resume.
 To see every available style, voice, hook, post-pattern, and layout-system:
 
 ```bash
-python .claude/skills/linkedin-carousels/scripts/list.py
+python data/scripts/list.py
 # or:
-python .claude/skills/linkedin-carousels/scripts/list.py <kind>
-python .claude/skills/linkedin-carousels/scripts/list.py <kind> <name>
+python data/scripts/list.py <kind>
+python data/scripts/list.py <kind> <name>
 ```
 
 This is the first command a new user should run after installing the
@@ -245,7 +245,7 @@ library's README for the recipe.
 To list available styles from a terminal:
 
 ```bash
-cat .claude/skills/linkedin-carousels/styles/_index.md
+cat data/styles/_index.md
 ```
 
 ---
@@ -565,7 +565,7 @@ Per slide:
    actual slide.
 2. Generate:
    ```bash
-   python .claude/skills/linkedin-carousels/scripts/generate.py \
+   python data/scripts/generate.py \
      --run "runs/<slug>-<date>" --slide 3 --prompt "<full prompt>"
    ```
 3. `generate.py` is **idempotent** — if `slides/slide-03.png` exists it skips
@@ -578,7 +578,7 @@ Per slide:
 5. **If the slide mentions a named brand or product** (LinkedIn,
    Telegram, Discord, Claude, GPT, Gemini, Stripe, Notion, etc.),
    pass the actual logo as the reference image instead of slide-01:
-   `--reference ".claude/skills/linkedin-carousels/assets/logos/<brand>.svg"`.
+   `--reference "data/assets/logos/<brand>.svg"`.
    Look up the brand in `assets/logos/_index.md` first to find the
    correct file + the alias mapping + any voice / endorsement
    guardrails. In the visual note, reference the logo by name and
@@ -606,7 +606,7 @@ When all slides exist: `steps.art = "done"`.
 ## STEP 5 — export
 
 ```bash
-python .claude/skills/linkedin-carousels/scripts/export.py --run "runs/<slug>-<date>"
+python data/scripts/export.py --run "runs/<slug>-<date>"
 ```
 
 This: confirms every scripted slide image exists (errors loudly if not);
@@ -631,4 +631,4 @@ If the user says "continue the AEO carousel":
 ## Setup
 
 Requires `OPENAI_API_KEY` in the environment.
-`pip install -r .claude/skills/linkedin-carousels/requirements.txt`
+`pip install -r data/requirements.txt`

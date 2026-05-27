@@ -7,11 +7,11 @@ the rest of the pipeline knows what has been done. Also creates the brand
 folder if it does not exist yet.
 
 Usage:
-    python .claude/skills/linkedin-carousels/scripts/init.py \
+    python data/scripts/init.py \
         --topic "On-page AEO" --brand aca --platform both --slides 10
 
     # first time using a brand:
-    python .claude/skills/linkedin-carousels/scripts/init.py \
+    python data/scripts/init.py \
         --topic "Crew retention" --brand lighthouse --new-brand
 """
 import argparse
@@ -23,10 +23,9 @@ import shutil
 import sys
 from pathlib import Path
 
-# Path model for a distributable Claude Code skill.
-# The skill folder is dropped into any project at:
-#     <project>/.claude/skills/linkedin-carousels/
-# Brands, runs, and the user's own libraries live in the PROJECT, not the skill:
+# Path model for the linkedin-carousels Hermes plugin.
+# The plugin data lives at ~/.hermes/plugins/linkedin-carousels/data/.
+# Brands, runs, and the user's own libraries live in the PROJECT, not the plugin:
 #     <project>/brands/<brand>/
 #     <project>/runs/<slug-date>/
 #     <project>/styles/<name>/           (user-added, optional)

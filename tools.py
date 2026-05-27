@@ -112,7 +112,12 @@ def carousel_init(args: dict, **_kwargs) -> str:
 
 def carousel_list(args: dict, **_kwargs) -> str:
     try:
-        return json.dumps(_run_script("list.py", [], args.get("project_root")))
+        cli_args = []
+        if args.get("kind"):
+            cli_args.append(args["kind"])
+        if args.get("name"):
+            cli_args.append(args["name"])
+        return json.dumps(_run_script("list.py", cli_args, args.get("project_root")))
     except Exception as e:
         return _err(f"carousel_list failed: {e}", traceback=traceback.format_exc())
 
