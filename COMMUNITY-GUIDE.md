@@ -134,14 +134,16 @@ A typical 10-slide carousel costs ~$0.80.
 ## Troubleshooting
 
 ### "OPENAI_API_KEY not found"
-The plugin needs your OpenAI key. Run:
+The plugin needs your OpenAI key. Add it to `~/.hermes/.env`:
+```
+OPENAI_API_KEY=sk-your-key-here
+```
+Then restart Hermes: `hermes gateway restart`
+
+Or re-run the install prompt:
 ```bash
 hermes plugins disable linkedin-carousels
 hermes plugins enable linkedin-carousels
-```
-It will prompt you for the key again. Or add it to `~/.hermes/.env`:
-```
-OPENAI_API_KEY=sk-your-key-here
 ```
 
 ### "openai package not installed"
