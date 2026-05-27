@@ -12,7 +12,7 @@ the run folder.
 ## Install
 
 ```bash
-hermes plugins install seguelaCedric/hermes-linkedin-carousels --enable
+hermes plugins install Automated-Client-Acquisition/hermes-linkedin-carousels --enable
 ```
 
 This drops the plugin into `~/.hermes/plugins/linkedin-carousels/`
