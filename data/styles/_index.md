@@ -11,3 +11,4 @@ adding a folder under `styles/<name>/` AND adding a line here.
 - bold-poster: Single oversized typographic statement per slide. No diagrams. Swiss / Dutch poster discipline adapted for the feed. Manifesto and single-quote carousels.
 - risograph-zine: Two-ink spot-print aesthetic with deliberate 2-4px misregistration, halftone fills, paper grain, hand-drawn illustrations. Indie / art-school / irreverent energy.
 - wired-magazine: Clean white backgrounds, bold condensed sans-serif display, electric blue accent, photography-forward with graphic overlays. WIRED / Fast Company tech-magazine energy.
+- yachting-luxury: Premium superyacht editorial on warm bone + deep navy with warm brass accents. Calm, exclusive, quietly authoritative. For luxury recruitment, salary guides, and high-trust maritime content.
