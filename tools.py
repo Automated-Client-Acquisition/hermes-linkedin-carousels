@@ -23,6 +23,54 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = PLUGIN_DIR / "data" / "scripts"
 
 
+def _profile_dir(profile_name: str) -> Path:
+    return Path.home() / ".hermes" / "profiles" / profile_name
+
+
+def _config_has_plugin(profile_name: str, plugin_name: str) -> bool:
+    cfg = _profile_dir(profile_name) / "config.yaml"
+    return cfg.exists() and plugin_name in cfg.read_text(errors="ignore")
+
+
+def _run_hermes(cmd: list[str], timeout: int = 30) -> dict[str, Any]:
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return {"returncode": p.returncode, "stdout": p.stdout.strip(), "stderr": p.stderr.strip()}
+    except Exception as e:
+        return {"returncode": -1, "stdout": "", "stderr": str(e)}
+
+
+def _enable_profile_plugin(profile_name: str, plugin_name: str) -> list[str]:
+    results = []
+    create = _run_hermes(["hermes", "profile", "create", profile_name])
+    msg = (create.get("stdout", "") + create.get("stderr", "")).lower()
+    if create["returncode"] == 0:
+        results.append(f"created profile: {profile_name}")
+    elif "already exists" in msg:
+        results.append(f"profile already exists: {profile_name}")
+    else:
+        results.append(f"profile create warning: {(create['stderr'] or create['stdout'])[:160]}")
+    pdir = _profile_dir(profile_name)
+    pdir.mkdir(parents=True, exist_ok=True)
+    enable = _run_hermes(["hermes", "-p", profile_name, "plugins", "enable", plugin_name])
+    if enable["returncode"] == 0 or _config_has_plugin(profile_name, plugin_name):
+        results.append(f"enabled root-level plugin on profile: {plugin_name}")
+    else:
+        shared = Path.home()/'.hermes'/'plugins'/plugin_name
+        local = pdir/'plugins'
+        local.mkdir(parents=True, exist_ok=True)
+        link = local/plugin_name
+        try:
+            if shared.exists() and not link.exists():
+                link.symlink_to(shared, target_is_directory=True)
+                results.append("profile-local symlink created for plugin discovery")
+            enable2 = _run_hermes(["hermes", "-p", profile_name, "plugins", "enable", plugin_name])
+            results.append("enabled after symlink" if enable2["returncode"] == 0 else f"enable warning: {(enable2['stderr'] or enable2['stdout'])[:160]}")
+        except Exception as e:
+            results.append(f"enable fallback warning: {e}")
+    return results
+
+
 def _err(message: str, **extra: Any) -> str:
     """Serialize a structured error response."""
     payload = {"ok": False, "error": message}
@@ -71,6 +119,75 @@ def _read_workspace(run_path: str) -> dict[str, Any] | None:
             except json.JSONDecodeError:
                 return None
     return None
+
+
+def carousel_setup_profile(args: dict, **_kwargs) -> str:
+    try:
+        profile_name = args.get("profile_name", "carousel-bot")
+        project_root = Path(args.get("project_root") or (Path.home()/"carousel-projects"/"default")).expanduser()
+        brand = args.get("brand", "default")
+        for d in [project_root, project_root/"brands"/brand, project_root/"runs", project_root/"styles", project_root/"voices"]:
+            d.mkdir(parents=True, exist_ok=True)
+        results = _enable_profile_plugin(profile_name, "linkedin-carousels")
+        pdir = _profile_dir(profile_name)
+        soul = f"""# Carousel Operator
+
+## Identity
+You are the dedicated carousel production operator. The linkedin-carousels plugin code lives at root level in `~/.hermes/plugins/linkedin-carousels`; this profile only enables and uses it.
+
+## Defaults
+- Project root: {project_root}
+- Brand: {brand}
+
+## Operating Rules
+- Ask before generating slide 1 because image generation costs money.
+- Always run carousel_list before asking style questions.
+- Save every run under the project root.
+- Deliver PDF, PNGs, post-copy.txt, and CHECKLIST.md.
+
+## First Live Commands
+- `Run carousel_status`
+- `Run carousel_smoke_test`
+- `Make a carousel from this URL and ask before generating slide 1`
+"""
+        (pdir/"SOUL.md").write_text(soul)
+        results.append("SOUL.md written")
+        return json.dumps({"ok": True, "profile_name": profile_name, "project_root": str(project_root), "brand": brand, "setup_summary": results, "next_action": "Run carousel_status, then carousel_smoke_test before paid image generation."})
+    except Exception as e:
+        return _err(f"carousel_setup_profile failed: {e}", traceback=traceback.format_exc())
+
+
+def carousel_status(args: dict, **_kwargs) -> str:
+    try:
+        profile_name = args.get("profile_name", "carousel-bot")
+        project_root = Path(args.get("project_root") or (Path.home()/"carousel-projects"/"default")).expanduser()
+        pdir = _profile_dir(profile_name)
+        checks = {
+            "root_level_plugin_exists": (Path.home()/'.hermes'/'plugins'/'linkedin-carousels').exists(),
+            "profile_exists": pdir.exists(),
+            "plugin_enabled_on_profile": _config_has_plugin(profile_name, "linkedin-carousels"),
+            "soul_exists": (pdir/'SOUL.md').exists(),
+            "project_root_exists": project_root.exists(),
+            "brands_dir_exists": (project_root/'brands').exists(),
+            "runs_dir_exists": (project_root/'runs').exists(),
+        }
+        missing = [k for k,v in checks.items() if not v]
+        return json.dumps({"ok": True, "profile_name": profile_name, "project_root": str(project_root), "checks": checks, "ready": not missing, "missing": missing, "next_action": "Run carousel_setup_profile" if missing else "Run carousel_smoke_test, then initialize one carousel run."})
+    except Exception as e:
+        return _err(f"carousel_status failed: {e}", traceback=traceback.format_exc())
+
+
+def carousel_smoke_test(args: dict, **_kwargs) -> str:
+    try:
+        project_root = Path(args.get("project_root") or (Path.home()/"carousel-projects"/"default")).expanduser()
+        reports = project_root/"reports"
+        reports.mkdir(parents=True, exist_ok=True)
+        status_payload = json.loads(carousel_status(args))
+        report = reports/"smoke-test.json"
+        report.write_text(json.dumps(status_payload, indent=2))
+        return json.dumps({"ok": True, "paid_calls": False, "side_effects": ["created/updated local smoke-test report only"], "saved_to": str(report), "ready": status_payload.get("ready", False), "next_action": status_payload.get("next_action")})
+    except Exception as e:
+        return _err(f"carousel_smoke_test failed: {e}", traceback=traceback.format_exc())
 
 
 def carousel_init(args: dict, **_kwargs) -> str:
@@ -190,6 +307,9 @@ def carousel_export(args: dict, **_kwargs) -> str:
 
 
 HANDLERS = {
+    "carousel_setup_profile": carousel_setup_profile,
+    "carousel_status": carousel_status,
+    "carousel_smoke_test": carousel_smoke_test,
     "carousel_init": carousel_init,
     "carousel_list": carousel_list,
     "carousel_state": carousel_state,

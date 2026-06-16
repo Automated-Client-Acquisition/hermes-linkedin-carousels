@@ -1,3 +1,43 @@
+CAROUSEL_SETUP_PROFILE = {
+    "name": "carousel_setup_profile",
+    "description": "Create/configure a dedicated carousel Hermes profile from the default/admin bot. The plugin code remains root-level; this creates the specialist profile, enables the plugin there, writes SOUL.md, and scaffolds a carousel project root.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "profile_name": {"type": "string", "description": "Dedicated profile name (default: carousel-bot)."},
+            "project_root": {"type": "string", "description": "Carousel project root to create/use (default: ~/carousel-projects/default)."},
+            "brand": {"type": "string", "description": "Default brand key (default: default)."}
+        },
+        "required": []
+    }
+}
+
+CAROUSEL_STATUS = {
+    "name": "carousel_status",
+    "description": "Check carousel plugin readiness: root-level plugin install, dedicated profile, plugin enablement, project root folders, and next action.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "profile_name": {"type": "string", "description": "Dedicated profile to check (default: carousel-bot)."},
+            "project_root": {"type": "string", "description": "Carousel project root to check."}
+        },
+        "required": []
+    }
+}
+
+CAROUSEL_SMOKE_TEST = {
+    "name": "carousel_smoke_test",
+    "description": "Run the smallest safe carousel proof: create/check project folders and write a local smoke-test report. No image generation, no paid calls.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "profile_name": {"type": "string", "description": "Dedicated profile to test (default: carousel-bot)."},
+            "project_root": {"type": "string", "description": "Carousel project root to test."}
+        },
+        "required": []
+    }
+}
+
 """Tool schemas for the linkedin-carousels Hermes plugin.
 
 Each schema is the LLM-visible contract for one tool. The handlers in
@@ -219,6 +259,9 @@ CAROUSEL_EXPORT = {
 }
 
 ALL_SCHEMAS = [
+    CAROUSEL_SETUP_PROFILE,
+    CAROUSEL_STATUS,
+    CAROUSEL_SMOKE_TEST,
     CAROUSEL_INIT,
     CAROUSEL_LIST,
     CAROUSEL_STATE,

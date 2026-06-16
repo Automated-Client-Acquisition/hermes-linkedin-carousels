@@ -9,6 +9,9 @@ description: >
 author: Cedric Seguela
 
 provides_tools:
+  - carousel_smoke_test
+  - carousel_status
+  - carousel_setup_profile
   - carousel_init
   - carousel_list
   - carousel_state
